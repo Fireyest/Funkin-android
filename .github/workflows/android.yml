@@ -1,82 +1,87 @@
 # This is a basic workflow to help you get started with Actions
 
-# Based on Kade engine ci
-# Made by luckydog7 for https://github.com/luckydog7/Funkin-android
+name: mobile :)
 
-name: Android Build CI
-
-# Controls when the workflow will run
-on: [push, pull_request, workflow_dispatch]
+# Controls when the action will run.
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  androidBuild:
     runs-on: ubuntu-latest
-    
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-      - uses: krdlab/setup-haxe@v1
-        with:
-          haxe-version: 4.2.3
-          
-      - name: Cache haxelib path
-        uses: actions/cache@v2
-        with:
-          path: |
-            %HAXELIB_ROOT%
-          key: ${{ runner.os }}-android
-          
-      - name: Setup Android SDK Tools
-        uses: android-actions/setup-android@v2.0.2
-        
-      - name: Setup Java JDK
-        uses: actions/setup-java@v2.3.1
-        with:
-          distribution: 'zulu' # See 'Supported distributions' for available options
-          java-version: '11'
-        
-      - uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r15c
+    strategy:
+      matrix:
+        arch: [release, debug]
 
-      # Runs a set of commands using the runners shell
-      - name: script run line haha
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+
+      - name: Install System Dependencies
         run: |
-          mkdir -p "%HAXELIB_ROOT%"
-          haxelib setup "%HAXELIB_ROOT%"
-          haxelib install lime 7.9.0 --quiet
-          haxelib install openfl --quiet
-          haxelib install flixel 4.9.0 --quiet
-          haxelib install hxcpp --quiet
-          haxelib run lime setup flixel
-          haxelib remove flixel-addons --quiet
-          haxelib run lime setup
-          haxelib run lime config ANDROID_SDK $ANDROID_SDK_ROOT
-          haxelib run lime config ANDROID_NDK_ROOT $ANDROID_NDK_ROOT
-          haxelib run lime config JAVA_HOME $JAVA_HOME
-          haxelib run lime config ANDROID_SETUP true
-          haxelib install flixel-tools --quiet
-          haxelib install flixel-ui --quiet
-          haxelib install flixel-addons 2.10.0 --quiet
-          haxelib install hscript --quiet
-          haxelib install hxCodec
-          haxelib git faxe https://github.com/uhrobots/faxe --quiet
-          haxelib git polymod https://github.com/larsiusprime/polymod.git --quiet
-          haxelib git discord_rpc https://github.com/Aidan63/linc_discord-rpc --quiet
-          haxelib git extension-webm https://github.com/luckydog7/extension-webm --quiet
-          haxelib git linc_luajit https://github.com/MasterEric/linc_luajit.git --quiet
-          haxelib git hxvm-luajit https://github.com/nebulazorua/hxvm-luajit.git --quiet
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev g++-multilib gcc-multilib libasound2-dev libx11-dev libxext-dev libxi-dev libxrandr-dev libxinerama-dev libmbedtls-dev libpng-dev libturbojpeg-dev libuv1-dev libvorbis-dev
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@main
+        id: setup-ndk
+        with:
+          ndk-version: r21e
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@main
+        with:
+          distribution: 'zulu'
+          java-version: '19'
+
+      - name: Setup Haxe
+        uses: krdlab/setup-haxe@master
+        with:
+          haxe-version: 4.2.5
+
+      - name: Installing Libraries
+        run: |
+          haxelib --quiet install hxcpp
+          haxelib --quiet install format
+          haxelib --quiet install hxp
+          haxelib --quiet install lime 7.9.0
+          haxelib --quiet install openfl
+          haxelib --quiet install flixel 4.9.0
+          haxelib --quiet install flixel-addons 2.10.0
+          haxelib --quiet install flixel-ui
+          haxelib --quiet install hscript
+          haxelib --quiet update haxelib
+          haxelib --quiet install hxCodec
+          haxelib --quiet install newgrounds
+          haxelib --quiet git faxe https://github.com/uhrobots/faxe
+          haxelib --quiet git extension-androidtools https://github.com/MAJigsaw77/extension-androidtools.git
+          haxelib --quiet git polymod https://github.com/larsiusprime/polymod.git 
+          haxelib --quiet git discord_rpc https://github.com/Aidan63/linc_discord-rpc 
+          haxelib --quiet git extension-webm https://github.com/luckydog7/extension-webm 
+          haxelib --quiet git linc_luajit https://github.com/MasterEric/linc_luajit.git 
+          haxelib --quiet git hxvm-luajit https://github.com/nebulazorua/hxvm-luajit.git 
           haxelib install actuate 
           haxelib list
-          
-      - name: funni build logs
-        run: haxelib run lime build android -Dci
-          
-      - uses: actions/upload-artifact@v2
+
+      - name: Configure Android
+        run: |
+          haxelib run lime setup -alias -y
+          haxelib run lime config ANDROID_SDK $ANDROID_HOME
+          haxelib run lime config ANDROID_NDK_ROOT $ANDROID_NDK_HOME
+          haxelib run lime config JAVA_HOME $JAVA_HOME
+          haxelib run lime config ANDROID_SETUP true
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+
+      - name: Building
+        run: haxelib run lime build android -${{ matrix.arch }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@main
         with:
-          name: Android Build
-          path: export/release/android/bin/app/build/outputs/apk/debug
+          name: androidBuild-${{ matrix.arch }}
+          path: export/${{ matrix.arch }}/android/bin/app/build/outputs/apk/debug
+          if-no-files-found: error
